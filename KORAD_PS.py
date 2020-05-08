@@ -5,11 +5,9 @@ Created on Thu Oct  9 23:05:05 2014
 @author: jason
 """
 
-from tkinter import *
-from tkinter import ttk
-from tkinter import messagebox
 import serial
 import time
+import argparse
 
 #==============================================================================
 # Define protocol commands
@@ -50,7 +48,7 @@ def GetID():
     PS.flushInput()
     PS.write(REQUEST_ID)  # Request the ID from the Power Supply
     PSID = PS.read(16)
-    print(b'PSID = '+PSID)
+    # print(b'PSID = '+PSID)
     PS.flushInput()
     return(PSID)
 
@@ -68,7 +66,7 @@ def Get_I_Set():
     if (I_set == b''):
         I_set = b'0'
     I_set = float(I_set)
-    print(str('Current is set to ')+str(I_set))
+    # print(str('Current is set to ')+str(I_set))
     PS.flushInput()
     return(I_set)
 
@@ -83,7 +81,7 @@ def Get_V_Set():
     PS.flushInput()
     PS.write(REQUEST_SET_VOLTAGE)  # Request the target voltage
     V_set = float(PS.read(5))
-    print(str('Voltage is set to ')+str(V_set))
+    # print(str('Voltage is set to ')+str(V_set))
     PS.flushInput()
     return(V_set)
 
@@ -98,7 +96,7 @@ def Get_Status():
     PS.flushInput()
     PS.write(REQUEST_STATUS)  # Request the status of the PS
     Stat = str(PS.read(5))
-    print('Status = '+Stat)
+    # print('Status = '+Stat)
     PS.flushInput()
     return(Stat)
 
@@ -121,22 +119,22 @@ def SetVoltage(Voltage):
     time.sleep(0.2)
     VeriVolt = "{:2.2f}".format(float(Get_V_Set()))  # Verify PS accepted
         # the setting
-#    print(VeriVolt)
-#    print(Voltage)
+    print(VeriVolt)
+    print(Voltage)
     while (VeriVolt != Voltage):
         PS.write(Output_string)  # Try one more time
-    vEntry.delete(0, 5)
-    vEntry.insert(0, "{:2.2f}".format(float(VeriVolt)))
     return(Output_string)
 
 
 def SetCurrent(Current):
+    print('before reopening serial')
     PS = serial.Serial("/dev/ttyACM0",
                        baudrate=9600,
                        bytesize=8,
                        parity='N',
                        stopbits=1,
                        timeout=1)
+    print('after reopening serial')
     PS.flushInput()
     if (float(Current) > float(IMAX)):
         Current = IMAX
@@ -149,8 +147,6 @@ def SetCurrent(Current):
     VeriAmp = "{:2.3f}".format(float(Get_I_Set()))
     if (VeriAmp != Current):
         VeriAmp = 0.00
-    iEntry.delete(0, 5)
-    iEntry.insert(0, "{:2.3f}".format(float(VeriAmp)))
     return(Output_string)
 
 
@@ -203,7 +199,7 @@ def SetOP(OnOff):
     Output_string = SET_OUTPUT + bytes(OnOff, "utf-8")
 
     PS.write(Output_string)
-    print(Output_string)
+    # print(Output_string)
     PS.flushInput()
     return(Output_string)
 
@@ -218,7 +214,7 @@ def SetOVP(OnOff):
     PS.flushInput()
     Output_string = SET_OVP + OnOff
     PS.write(Output_string)
-    print(Output_string)
+    # print(Output_string)
     PS.flushInput()
     return(Output_string)
 
@@ -233,42 +229,29 @@ def SetOCP(OnOff):
     PS.flushInput()
     Output_string = SET_OCP + OnOff
     PS.write(Output_string)
-    print(Output_string)
+    # print(Output_string)
     PS.flushInput()
     return(Output_string)
 
 
 def Update_VandI():
-#    print(V_Actual())
     V_actual = "{:2.2f}".format(V_Actual())
-    vReadoutLabel.configure(text="{} {}".format(V_actual, 'V'))
-#    print(V_actual)
+    # vReadoutLabel.configure(text="{} {}".format(V_actual, 'V'))
 
     I_actual = "{0:.3f}".format(I_Actual())
-    iReadoutLabel.configure(text="{} {}".format(I_actual, 'A'))
-#    print(I_actual)
+    # iReadoutLabel.configure(text="{} {}".format(I_actual, 'A'))
+    print(str(int(round(time.time() * 1000))) + ";" + str(V_actual) + ";" + str(I_actual) )
 
 
-def Application_Loop():
-#        print('application loop run')
-        app.after(75, Update_VandI)
-        app.after(100, Application_Loop)
+def SetVA(volt, current):
+    # Volts = vEntry.get()
+    SetVoltage(volt)
 
-
-def SetVA():
-    Volts = vEntry.get()
-    SetVoltage(Volts)
-
-    Amps = iEntry.get()
-    if (Amps == ''):
-        Amps = b'0'
-        print('changed Amps to 0')
-    Amps = "{0:.3f}".format(float(Amps))
-    SetCurrent(Amps)
-
-
-def MemSet(MemNum):
-    print(MemNum)
+    # Amps = iEntry.get()
+    if (current == ''):
+        current = b'0'
+    current = "{0:.3f}".format(float(current))
+    SetCurrent(current)
 
 
 #==============================================================================
@@ -278,101 +261,26 @@ V_set = "{0:.2f}".format(Get_V_Set(), 'V')
 I_set = "{0:.3f}".format(Get_I_Set(), 'I')
 PSID = GetID()
 Stat = Get_Status()
-VMAX = '61'
-IMAX = '3.1'
+VMAX = '05'
+IMAX = '3.0'
+
+parser = argparse.ArgumentParser(description='Korad-KA6003P power supply control tool')
+parser.add_argument('--volt', dest='volt', default='5',
+                    help='Target voltage (default 5V)')
+parser.add_argument('--current', dest='current', default='2.0',
+                    help='Maximum current (default 2A)')
+
+args = parser.parse_args()
+print('args.volt: ' + args.volt)
+print('args.current: ' + args.current)
 
 
 #==============================================================================
-# Create Window
+# Set request voltage/current and poll loop for reading actual values
 #==============================================================================
-app = Tk()
-app.geometry("400x280+1200+1200")
-app.title('TK Experiment')
+SetVA(args.volt, args.current)
+# var = 1
+time.sleep(1)
+while 1 == 1:
+    Update_VandI()
 
-# Actual Readout area
-#==============================================================================
-actualLabel = ttk.Label(app)
-actualLabel.grid(row=0, column=0, sticky='W', padx=50, pady=10)
-actualLabel.configure(text='Actual')
-
-vReadoutLabel = ttk.Label(app, text="unknown")
-vReadoutLabel.grid(row=1, column=0, sticky='E', padx=50, pady=5)
-
-iReadoutLabel = ttk.Label(app, text="unknown")
-iReadoutLabel.grid(row=2, column=0, sticky='E', padx=50, pady=0)
-
-#spacerLabel = ttk.Label(app, text="         ")
-#spacerLabel.grid(row=0, column=1, sticky=N)
-
-# Set textentry area
-#==============================================================================
-setValLabel = ttk.Label(app, text="Set")
-setValLabel.grid(row=0, column=2, sticky='N', padx=50, pady=10)
-
-
-Volts = StringVar(name=str(V_set))
-vEntry = Entry(app, textvariable=Volts)
-vEntry.delete(0, 5)
-vEntry.insert(0, Volts)
-vEntry["width"] = 5
-vEntry.grid(row=1, column=2, sticky='E', padx=50, pady=0)
-#Amps = vEntry.get()
-
-
-Amps = StringVar(name=str(I_set))
-iEntry = Entry(app, textvariable=Amps)
-iEntry.insert(0, I_set)
-iEntry["width"] = 5
-iEntry.grid(row=2, column=2, sticky='E', padx=50, pady=0)
-#Amps = iEntry.get()
-
- #Button Area
-#==============================================================================
-Op_On_Button = Button(app)
-Op_On_Button.configure(text='Turn OP On')
-Op_On_Button.grid(row=4, column=1, sticky='N')
-Op_On_Button.configure(command=lambda: SetOP('1'))
-
-
-Op_Off_Button = Button(app)
-Op_Off_Button.configure(text='Turn OP Off')
-Op_Off_Button.grid(row=5, column=1, sticky='N')
-Op_Off_Button.configure(command=lambda: SetOP('0'))
-
-
-Set_Button = Button(app)
-Set_Button.configure(text='Set V & I')
-Set_Button.grid(row=4, column=2, sticky='N')
-Set_Button.configure(command=lambda: SetVA())
-
-
-OVP_Button = Button(app)
-OVP_Button.configure(text='OVP ON')
-OVP_Button.grid(row=5, column=0, sticky='W')
-OVP_Button.configure(command=lambda: SetOVP(b'1'))
-
-
-OVP_Button = Button(app)
-OVP_Button.configure(text='OVP OFF')
-OVP_Button.grid(row=6, column=0, sticky='W')
-OVP_Button.configure(command=lambda: SetOVP(b'0'))
-
-
-OCP_Button = Button(app)
-OCP_Button.configure(text='OCP ON')
-OCP_Button.grid(row=7, column=0, sticky='W')
-OCP_Button.configure(command=lambda: SetOCP(b'1'))
-
-
-OCP_Button = Button(app)
-OCP_Button.configure(text='OCP OFF')
-OCP_Button.grid(row=8, column=0, sticky='W')
-OCP_Button.configure(command=lambda: SetOCP(b'0'))
-
-
-#==============================================================================
-# Loop
-#==============================================================================
-# Update_VandI()
-Application_Loop()
-app.mainloop()
