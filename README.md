@@ -8,5 +8,3 @@ make this Korad-KA6003P power supply manageable via a simple CLI tool. The prima
 
 TODO:
 - Aim for constant time delta between measurements (i.e. make sleep dependant time the previous reads on the serial channel took)
-- Allow configuring of serial device via argument
-- Provide CLI arguments for OCP/OCP/output
