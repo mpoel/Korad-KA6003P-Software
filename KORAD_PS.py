@@ -148,6 +148,8 @@ parser = argparse.ArgumentParser(description='Korad-KA6003P power supply control
 
 parser.add_argument('--device', dest='device', default="/dev/ttyACM0",
                     help='Serial device (default \"/dev/ttyACM0\")')
+parser.add_argument('--poll-interval', dest='poll_interval', type=int, default="100",
+                    help='Poll interval in milliseconds')
 parser.add_argument('--volt', dest='volt', type=float, default=5.0,
                     help='Target voltage (default 5V)')
 parser.add_argument('--current', dest='current', type=float, default=2.0,
@@ -182,8 +184,12 @@ set_output(power_supply, b'1' if args.out else b'0')
 # ==============================================================================
 # Poll loop for reading actual values
 # ==============================================================================
+
 while True:
+    ts_before_read_ms = int(round(time.time() * 1000))
     volt_measured = "{:2.2f}".format(get_actual_voltage(power_supply))
     current_measured = "{0:.3f}".format(get_actual_current(power_supply))
-    unix_ms = int(round(time.time() * 1000))
-    print(str(unix_ms) + ";" + str(volt_measured) + ";" + str(current_measured))
+    ts_after_read_ms = int(round(time.time() * 1000))
+    print(str(ts_after_read_ms) + ";" + str(volt_measured) + ";" + str(current_measured))
+    wait_ms = max(args.poll_interval - (ts_after_read_ms - ts_before_read_ms), 0)
+    time.sleep(wait_ms / 1000.0)
