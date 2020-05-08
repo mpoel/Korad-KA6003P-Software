@@ -2,7 +2,7 @@
 """
 Created on Thu Oct  9 23:05:05 2014
 
-@author: jason
+@author: jason, mpoell
 """
 
 import serial
@@ -37,220 +37,143 @@ SET_OCP = b"OCP"  # Enable(1)/Disable(0) OverCurrentProtection
 # ==============================================================================
 # Methods
 # ==============================================================================
-def get_id():
+def open_serial():
     ps = serial.Serial("/dev/ttyACM0",
                        baudrate=9600,
                        bytesize=8,
                        parity='N',
                        stopbits=1,
                        timeout=1)
-    ps.flushInput()
-    ps.write(REQUEST_ID)  # Request the ID from the Power Supply
-    psid = ps.read(16)
-    ps.flushInput()
-    return psid
+    # ps.flush()  # was there originally, works without for me
+    return ps
 
 
-def get_i_set():
-    ps = serial.Serial("/dev/ttyACM0",
-                       baudrate=9600,
-                       bytesize=8,
-                       parity='N',
-                       stopbits=1,
-                       timeout=1)
-    ps.flushInput()
-    ps.write(REQUEST_SET_CURRENT)  # Request the target current
-    i_set = ps.read(5)
-    if i_set == b'':
-        i_set = b'0'
-    i_set = float(i_set)
-    ps.flushInput()
-    return i_set
+def get_float(prop):
+    ps = open_serial()
+    ps.write(prop)  # Request the prop
+    # time.sleep(0.015)  # was there originally, works without for me
+    value = ps.read(5)
+    if value == b'':
+        value = b'0'
+    value = float(value)
+    ps.flush()
+    return value
 
 
-def get_v_set():
-    ps = serial.Serial("/dev/ttyACM0",
-                       baudrate=9600,
-                       bytesize=8,
-                       parity='N',
-                       stopbits=1,
-                       timeout=1)
-    ps.flushInput()
-    ps.write(REQUEST_SET_VOLTAGE)  # Request the target voltage
-    v_set = float(ps.read(5))
-    ps.flushInput()
-    return v_set
+def get_set_voltage():
+    return get_float(REQUEST_SET_VOLTAGE)
 
 
-def get_status():
-    ps = serial.Serial("/dev/ttyACM0",
-                       baudrate=9600,
-                       bytesize=8,
-                       parity='N',
-                       stopbits=1,
-                       timeout=1)
-    ps.flushInput()
-    ps.write(REQUEST_STATUS)  # Request the status of the ps
-    stat = str(ps.read(5))
-    ps.flushInput()
-    return stat
+def get_set_current():
+    return get_float(REQUEST_SET_CURRENT)
+
+
+def set_and_check(value, prop, format_str, get_fn):
+    ps = open_serial()
+    value_formatted = format_str.format(float(value))
+    output_string = prop + bytes(value_formatted, "utf-8")
+    while True:
+        ps.write(output_string)
+        ps.flush()
+        time.sleep(0.15)
+        value_verify = format_str.format(float(get_fn()))  # Verify ps accepted
+        if value_verify == value_formatted:
+            break
+    return output_string
 
 
 def set_voltage(voltage):
-    ps = serial.Serial("/dev/ttyACM0",
-                       baudrate=9600,
-                       bytesize=8,
-                       parity='N',
-                       stopbits=1,
-                       timeout=1)
-    ps.flushInput()
-    if float(voltage) > float(VMAX):
-        voltage = VMAX
-    voltage = "{:2.2f}".format(float(voltage))
-    output_string = SET_VOLTAGE + bytes(voltage, "utf-8")
-    ps.write(output_string)
-    ps.flushInput()
-    time.sleep(0.2)
-    veri_volt = "{:2.2f}".format(float(get_v_set()))  # Verify ps accepted
-    while veri_volt != voltage:
-        ps.write(output_string)  # Try one more time
-    return output_string
+    return set_and_check(voltage, SET_VOLTAGE, "{:2.2f}", get_set_voltage)
 
 
 def set_current(current):
-    ps = serial.Serial("/dev/ttyACM0",
-                       baudrate=9600,
-                       bytesize=8,
-                       parity='N',
-                       stopbits=1,
-                       timeout=1)
-    ps.flushInput()
-    if float(current) > float(IMAX):
-        current = IMAX
-    current = "{:2.3f}".format(float(current))
-    output_string = SET_CURRENT + bytes(current, "utf-8")
-    ps.write(output_string)
-    ps.flushInput()
-    time.sleep(0.2)
-    veri_amp = "{:2.3f}".format(float(get_i_set()))
-    # if veri_amp != current:
-    #     veri_amp = 0.00
-    return output_string
+    return set_and_check(current, SET_CURRENT, "{:2.3f}", get_set_current)
 
 
-def v_actual():
-    ps = serial.Serial("/dev/ttyACM0",
-                       baudrate=9600,
-                       bytesize=8,
-                       parity='N',
-                       stopbits=1,
-                       timeout=1)
-    ps.flushInput()
-    ps.write(REQUEST_ACTUAL_VOLTAGE)  # Request the actual voltage
-    time.sleep(0.015)
-    v_actual = ps.read(5)
-    if v_actual == b'':
-        v_actual = b'0'  # deal with the occasional NULL from ps
-    v_actual = float(v_actual)
-    ps.flushInput()
-    return v_actual
+def get_actual_voltage():
+    return get_float(REQUEST_ACTUAL_VOLTAGE)
 
 
-def i_actual():
-    ps = serial.Serial("/dev/ttyACM0",
-                       baudrate=9600,
-                       bytesize=8,
-                       parity='N',
-                       stopbits=1,
-                       timeout=1)
-    ps.flushInput()
-    ps.write(REQUEST_ACTUAL_CURRENT)  # Request the actual current
-    time.sleep(0.015)
-    i_actual = ps.read(5)
-    if i_actual == b'':
-        i_actual = b'0'  # deal with the occasional NULL from ps
-    i_actual = float(i_actual)
-    ps.flushInput()
-    return i_actual
+def get_actual_current():
+    return get_float(REQUEST_ACTUAL_CURRENT)
+
+
+# ==============================================================================
+# Additional Methods (unused for core functionality)
+# ==============================================================================
+def get_id():
+    ps = open_serial()
+    ps.write(REQUEST_ID)  # Request the ID from the Power Supply
+    psid = ps.read(16)
+    ps.flush()
+    return psid
+
+
+def get_status():
+    ps = open_serial()
+    ps.write(REQUEST_STATUS)  # Request the status of the ps
+    stat = str(ps.read(5))
+    ps.flush()
+    return stat
 
 
 def set_op(on_off):
-    ps = serial.Serial("/dev/ttyACM0",
-                       baudrate=9600,
-                       bytesize=8,
-                       parity='N',
-                       stopbits=1,
-                       timeout=1)
-    ps.flushInput()
+    ps = open_serial()
     output_string = SET_OUTPUT + bytes(on_off, "utf-8")
     ps.write(output_string)
-    ps.flushInput()
+    ps.flush()
     return output_string
 
 
 def set_ovp(on_off):
-    ps = serial.Serial("/dev/ttyACM0",
-                       baudrate=9600,
-                       bytesize=8,
-                       parity='N',
-                       stopbits=1,
-                       timeout=1)
-    ps.flushInput()
+    ps = open_serial()
     output_string = SET_OVP + on_off
     ps.write(output_string)
-    ps.flushInput()
+    ps.flush()
     return output_string
 
 
 def set_ocp(on_off):
-    ps = serial.Serial("/dev/ttyACM0",
-                       baudrate=9600,
-                       bytesize=8,
-                       parity='N',
-                       stopbits=1,
-                       timeout=1)
-    ps.flushInput()
+    ps = open_serial()
     output_string = SET_OCP + on_off
     ps.write(output_string)
-    ps.flushInput()
+    ps.flush()
     return output_string
-
-
-def update_v_and_i():
-    volt_measured = "{:2.2f}".format(v_actual())
-    current_measured = "{0:.3f}".format(i_actual())
-    print(str(int(round(time.time() * 1000))) + ";" + str(volt_measured) + ";" + str(current_measured))
-
-
-def set_v_a(volt, current):
-    set_voltage(volt)
-    if current == '':
-        current = b'0'
-    current = "{0:.3f}".format(float(current))
-    set_current(current)
 
 
 # ==============================================================================
 # Variables
 # ==============================================================================
-V_set = "{0:.2f}".format(get_v_set(), 'V')
-I_set = "{0:.3f}".format(get_i_set(), 'I')
-PSID = get_id()
-Stat = get_status()
-VMAX = '05'
-IMAX = '3.0'
+VMAX = 5
+IMAX = 3.0
 
+
+# ==============================================================================
+# Argument parsing
+# ==============================================================================
 parser = argparse.ArgumentParser(description='Korad-KA6003P power supply control tool')
-parser.add_argument('--volt', dest='volt', default='5',
+parser.add_argument('--volt', dest='volt', type=float, default=5.0,
                     help='Target voltage (default 5V)')
-parser.add_argument('--current', dest='current', default='2.0',
+parser.add_argument('--current', dest='current', type=float, default=2.0,
                     help='Maximum current (default 2A)')
 args = parser.parse_args()
 
+
 # ==============================================================================
-# Set request voltage/current and poll loop for reading actual values
+# Set request voltage/current
 # ==============================================================================
-set_v_a(args.volt, args.current)
-time.sleep(1)
-while 1 == 1:
-    update_v_and_i()
+set_voltage(args.volt if args.volt <= VMAX else VMAX)
+
+curr = args.current if args.current <= IMAX else IMAX
+current_formatted = "{0:.3f}".format(float(curr))
+set_current(curr)
+
+
+# ==============================================================================
+# Poll loop for reading actual values
+# ==============================================================================
+while True:
+    volt_measured = "{:2.2f}".format(get_actual_voltage())
+    current_measured = "{0:.3f}".format(get_actual_current())
+    unix_ms = int(round(time.time() * 1000))
+    print(str(unix_ms) + ";" + str(volt_measured) + ";" + str(current_measured))
