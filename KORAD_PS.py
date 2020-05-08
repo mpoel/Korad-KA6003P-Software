@@ -52,11 +52,16 @@ def get_float(device, prop):
     ps = open_serial(device)
     ps.write(prop)  # Request the prop
     # time.sleep(0.015)  # was there originally, works without for me
-    value = ps.read(5)
-    if value == b'':
-        value = b'0'
-    value = float(value)
-    ps.flush()
+    while True:
+        try:
+            value = ps.read(5)
+            ps.flush()
+            if value == b'':
+                value = b'0'
+            value = float(value)
+            break
+        except ValueError:
+            print('<invalid>')
     return value
 
 
@@ -76,7 +81,7 @@ def set_and_check(device, value, prop, format_str, get_fn):
         ps.write(output_string)
         ps.flush()
         time.sleep(0.15)
-        value_verify = format_str.format(float(get_fn(device)))  # Verify ps accepted
+        value_verify = format_str.format(get_fn(device))  # Verify ps accepted
         if value_verify == value_formatted:
             break
 
